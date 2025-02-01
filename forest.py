@@ -9,113 +9,152 @@ import re
 import json
 from urllib.parse import urlparse
 
-import chatgpt
-
-# Global set to store sensitive values detected across sessions
-sensitive_values = set()
 
 # Global set to track unique keys extracted from request URLs
 unique_keys_from_urls = set()
 
 def create_database(db_name):
-    # Create or connect to the SQLite database
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
 
-    # Create the table to store request and response data with sensitivity flag
+    # Create tables
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             method TEXT,
             protocol TEXT,
             host TEXT,
             url TEXT,
-            request_headers TEXT,
             request_body TEXT,
             response_status INTEGER,
-            response_headers TEXT,
             response_body TEXT,
-            is_sensitive INTEGER DEFAULT 0  -- 0 = Not sensitive, 1 = Sensitive
+            is_sensitive INTEGER DEFAULT 0
         )
     ''')
-
-    # Create the credentials table to store sensitive values
+    
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS credentials (
+        CREATE TABLE IF NOT EXISTS headers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id INTEGER,
-            sensitive_value TEXT,
+            host TEXT,
+            key TEXT,
+            value TEXT,
             FOREIGN KEY (session_id) REFERENCES sessions (id)
         )
     ''')
-
-    # Create the keywords table to dynamically update user-related keywords
+    
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_keywords (
+        CREATE TABLE IF NOT EXISTS response_headers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            keyword TEXT UNIQUE
+            session_id INTEGER,
+            host TEXT,
+            key TEXT,
+            value TEXT,
+            FOREIGN KEY (session_id) REFERENCES sessions (id)
         )
     ''')
-
-    # Create the target domains table to dynamically load domains
+    
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS target_domains (
+        CREATE TABLE IF NOT EXISTS cookies (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            domain TEXT UNIQUE
+            session_id INTEGER,
+            host TEXT,
+            key TEXT,
+            value TEXT,
+            FOREIGN KEY (session_id) REFERENCES sessions (id)
         )
-    ''')
-
-    # Insert default keywords if the table is empty
-    cursor.execute('''
-        INSERT OR IGNORE INTO user_keywords (keyword) VALUES
-        ('user'), ('profile'), ('file'), ('drive'), ('chat'), ('message'), ('owner')
-    ''')
-
-    # Insert default OneDrive-related domains
-    cursor.execute('''
-        INSERT OR IGNORE INTO target_domains (domain) VALUES
-        ('graph.microsoft.com'), ('live.com'), ('sharepoint.com')
     ''')
 
     conn.commit()
     return conn
 
-def fetch_user_data_keywords(conn):
-    """Fetch the list of user-related keywords from the database."""
+def load_keywords_from_file(file_path):
+    """Load keywords from a text file and return them as a list."""
+    with open(file_path, 'r') as f:
+        return [line.strip().lower() for line in f if line.strip()]
+
+def load_target_domains_from_file(file_path):
+    """Load target domains from a text file and return them as a list."""
+    with open(file_path, 'r') as f:
+        return [line.strip().lower() for line in f if line.strip()]
+
+def read_response_file(response_file):
+    """Read the response file (_s.txt) and return status, headers, and body."""
+    if not os.path.exists(response_file):
+        return 0, "", ""
+
+    with open(response_file, 'rb') as f:
+        raw_data = f.read()
+
+    # Find the end of headers (headers end with \r\n\r\n)
+    header_end_index = raw_data.find(b"\r\n\r\n")
+    if header_end_index == -1:
+        raise ValueError("Invalid response format: headers not found")
+
+    # Split headers and body
+    header_part = raw_data[:header_end_index].decode('utf-8', errors='replace')
+    body_part = raw_data[header_end_index + 4:]  # Body starts after \r\n\r\n
+
+    # Parse status line (e.g., HTTP/1.1 200 OK)
+    status_line = header_part.split("\n")[0].strip()
+    status_code = int(status_line.split(' ')[1])
+
+    # Parse headers into a dictionary
+    headers = {}
+    for line in header_part.split("\n")[1:]:
+        if ':' in line:
+            key, value = line.split(':', 1)
+            headers[key.strip().lower()] = value.strip()
+
+    # Handle gzip-compressed responses
+    if 'content-encoding' in headers and headers['content-encoding'].lower() == 'gzip':
+        try:
+            print(f"Decompressing gzip response for {response_file}...")
+            body = gzip.decompress(body_part).decode('utf-8', errors='replace')
+        except Exception as e:
+            print(f"Failed to decompress gzip response: {e}")
+            body = ""
+    else:
+        body = body_part.decode('utf-8', errors='replace')
+
+    return status_code, headers, body
+
+def store_key_value_pairs(conn, table_name, session_id, host, key, value):
+    """Store (session_id, host, key, value) pairs in the specified table, avoiding duplicates based on (host, key, value)."""
     cursor = conn.cursor()
-    cursor.execute('SELECT keyword FROM user_keywords')
-    return [row[0].lower() for row in cursor.fetchall()]
 
-def fetch_target_domains(conn):
-    """Fetch the list of target domains from the database."""
-    cursor = conn.cursor()
-    cursor.execute('SELECT domain FROM target_domains')
-    return [row[0].lower() for row in cursor.fetchall()]
+    # Check for duplicates based on (host, key, value) only
+    cursor.execute(f'''
+        SELECT 1 FROM {table_name} 
+        WHERE host = ? AND key = ? AND value = ?
+    ''', (host, key, value))
 
-def extract_sensitive_values(response):
-    """Extract sensitive values from response headers and body."""
-    sensitive_candidates = set()
+    # Insert the (session_id, host, key, value) only if no duplicates exist
+    if not cursor.fetchone():
+        cursor.execute(f'''
+            INSERT INTO {table_name} (session_id, host, key, value)
+            VALUES (?, ?, ?, ?)
+        ''', (session_id, host, key, value))
 
-    # From response headers
-    for key, value in response.headers.items():
-        if len(value) > 10:  # Arbitrary length to filter meaningful values
-            sensitive_candidates.add(value)
+    conn.commit()
 
-    # From response body (split into tokens for extraction)
-    for token in response.text.split():
-        if len(token) > 10:  # Token length threshold for sensitive values
-            sensitive_candidates.add(token)
+def store_headers(conn, session_id, host, headers):
+    for key, value in headers.items():
+        store_key_value_pairs(conn, "headers", session_id, host, key, value)
 
-    return sensitive_candidates
+def store_response_headers(conn, session_id, host, response_headers):
+    for key, value in response_headers.items():
+        store_key_value_pairs(conn, "response_headers", session_id, host, key, value)
 
-def contains_sensitive_value(headers, body):
-    """Check if headers or body contain any of the previously extracted sensitive values."""
-    combined_text = " ".join(headers.values()) + " " + body
-    for sensitive_value in sensitive_values:
-        if sensitive_value in combined_text:
-            print(f"Sensitive value detected in request: {sensitive_value}")
-            return True
-    return False
+def store_cookies(conn, session_id, host, headers):
+    headers_lower = {k.lower(): v for k, v in headers.items()}
+    
+    if 'cookie' in headers_lower:
+        cookies = headers_lower['cookie'].split('; ')
+        for cookie in cookies:
+            if '=' in cookie:
+                key, value = cookie.split('=', 1)
+                store_key_value_pairs(conn, "cookies", session_id, host, key.strip().lower(), value.strip())
 
 def is_user_data(response_text, user_keywords):
     """Determine if the response contains user-related data based on keywords or JSON structure."""
@@ -135,27 +174,9 @@ def is_user_data(response_text, user_keywords):
 
     return False
 
-def extract_keys_from_url(url):
-    """Extract all potential unique keys (IDs) from a given URL, with flexible length and patterns."""
-    key_pattern = re.compile(r"[a-zA-Z0-9_-]{5,}")  # ID-like patterns (5+ characters)
-    return set(key_pattern.findall(url))
-
-def keys_used_in_response(response_text):
-    """Check if any previously extracted unique keys are used in the response text."""
-    for key in unique_keys_from_urls:
-        if key in response_text:
-            print(f"Found matching key in response: {key}")
-            return True, key
-    return False, None
-
-def extract_saz_and_make_requests(saz_file, db_conn):
-    valid_content_types = {"text/plain", "application/json", "text/html", "text/xml"}
+def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains):
     temp_dir = "extracted_saz"
     os.makedirs(temp_dir, exist_ok=True)
-
-    # Fetch the latest user-related keywords and target domains from the database
-    user_keywords = fetch_user_data_keywords(db_conn)
-    target_domains = fetch_target_domains(db_conn)
 
     try:
         with zipfile.ZipFile(saz_file, 'r') as saz_zip:
@@ -166,58 +187,64 @@ def extract_saz_and_make_requests(saz_file, db_conn):
 
         for client_file in session_files:
             session_id = os.path.basename(client_file).split('_')[0]
+            response_file = os.path.join(raw_dir, f"{session_id}_s.txt")
+
             print(f"Processing session: {session_id}")
 
+            # Read the request and response files
             request_lines, body = read_client_file(client_file)
+            response_status, response_headers, response_body = read_response_file(response_file)
+
             method, protocol, host, url, headers, body = parse_request(request_lines, body)
 
-            if session_id == "177":
-                print("dd")
+            # Check if the request is relevant to the target domains
             if target_domains and not is_relevant_request(host, url, headers, target_domains):
                 print(f"Skipping session {session_id} - Not relevant to target domains")
                 continue
 
-            # Extract keys from the URL and store them globally
-            extracted_keys = extract_keys_from_url(url)
-            unique_keys_from_urls.update(extracted_keys)
+            # Check if the response is valid based on headers, content type, and sensitive keywords
+            if not is_valid_response(response_headers, response_body):
+                print(f"Skipping session {session_id} - Invalid response")
+                continue
 
-            # Check if this request contains previously extracted sensitive values
-            is_sensitive = 1 if contains_sensitive_value(headers, body) else 0
+            # Check if the response contains user-related data
+            if is_user_data(response_body, user_keywords):
+                print("User-related data found in response.")
+                #TODO: skip session
 
-            response = send_request(method, protocol + host + url, headers, body)
+            # Store session data
+            session_id = store_session_in_db(db_conn, session_id, method, protocol, host, url, body, response_status, response_body)
 
-            if response and is_valid_response(response, valid_content_types):
-                # Check if any previously extracted keys are used in the current response
-                key_found, matching_key = keys_used_in_response(response.text)
-                if key_found:
-                    print(f"Linking key {matching_key} to future requests if needed.")
+            # Store request headers, response headers, and cookies in the database
+            store_headers(db_conn, session_id, host, headers)
+            store_response_headers(db_conn, session_id, host, response_headers)
+            store_cookies(db_conn, session_id, host, headers)
 
-                # Check if the response contains user-related data
-                if is_user_data(response.text, user_keywords):
-                    print("User-related data found in response.")
-                    is_sensitive = 1  # Mark this session as sensitive
+            print(f"Stored session {session_id} - Response status: {response_status}")
 
-                # Extract sensitive values from the response and update the global list
-                extracted_values = extract_sensitive_values(response)
-                sensitive_values.update(extracted_values)
-
-                # Store the session and sensitive values in the database
-                session_id_db = store_session_in_db(db_conn, method, protocol, host, url, headers, body, response, is_sensitive)
-                store_sensitive_values(db_conn, session_id_db, extracted_values)
-                print(f"Response for {protocol + host + url} - Status: {response.status_code}\n")
-            else:
-                print(f"Skipping session {session_id} - Invalid response content or length")
     finally:
         shutil.rmtree(temp_dir)
 
-def is_valid_response(response, valid_content_types):
-    content_length = int(response.headers.get("Content-Length", 0))
-    content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+def is_valid_response(response_headers, response_body):
+    valid_content_types = {"text/plain", "application/json", "text/html", "text/xml"}
+    sensitive_header_keys = ["location", "access_token", "refresh_token", "authorization"]
 
-    if content_length == 0:
+    # Check sensitive keys in response headers
+    for key, value in response_headers.items():
+        if any(sensitive_key in key.lower() for sensitive_key in sensitive_header_keys):
+            print(f"Sensitive key detected in response headers: {key} -> {value}")
+            return True
+
+    # Extract Content-Type from response headers
+    content_type = response_headers.get("content-type", "").split(";")[0].strip().lower()
+
+    # Content-Length check
+    content_length = len(response_body)
+
+    # Validate Content-Type and minimum body length
+    if content_type not in valid_content_types and content_length < 10:
         return False
-    if content_type not in valid_content_types:
-        return False
+
     return True
 
 def is_relevant_request(host, url, headers, target_domains):
@@ -303,67 +330,41 @@ def send_request(method, full_url, headers, body):
     except Exception as e:
         print(f"Error sending request to {full_url}: {e}")
         return None
-
-def store_session_in_db(conn, method, protocol, host, url, request_headers, request_body, response, is_sensitive):
-    """Store the request and response data into the SQLite database."""
-    cursor = conn.cursor()
-
-    # Serialize headers and body as strings
-    request_headers_str = '\n'.join([f"{k}: {v}" for k, v in request_headers.items()])
-    response_headers_str = '\n'.join([f"{k}: {v}" for k, v in response.headers.items()])
-    response_body_str = response.text
-
-    # Insert data into the database with sensitivity flag
-    cursor.execute('''
-        INSERT INTO sessions (method, protocol, host, url, request_headers, request_body, response_status, response_headers, response_body, is_sensitive)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (method, protocol, host, url, request_headers_str, request_body, response.status_code, response_headers_str, response_body_str, is_sensitive))
-
-    conn.commit()
-    return cursor.lastrowid  # Return the session ID for linking sensitive values
-
-def store_sensitive_values(conn, session_id, sensitive_values):
-    """Store extracted sensitive values in the credentials table."""
-    cursor = conn.cursor()
-    for value in sensitive_values:
-        cursor.execute('''
-            INSERT INTO credentials (session_id, sensitive_value)
-            VALUES (?, ?)
-        ''', (session_id, value))
-    conn.commit()
-
-def query_sensitive_sessions(db_name):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-
-    print("\n📋 Sensitive sessions:")
-    cursor.execute('''
-        SELECT sessions.id, method, host, url, request_headers, sensitive_value
-        FROM sessions
-        JOIN credentials ON sessions.id = credentials.session_id
-    ''')
-
-    rows = cursor.fetchall()
-    for row in rows:
-        print(f"Session ID: {row[0]}, Method: {row[1]}, Host: {row[2]}, URL: {row[3]}\nHeaders:\n{row[4]}\nSensitive Value: {row[5]}\n")
     
-    conn.close()
+def store_session_in_db(conn, session_id, method, protocol, host, url, request_body, response_status, response_body):
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO sessions (id, method, protocol, host, url, request_body, response_status, response_body)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (session_id, method, protocol, host, url, request_body, response_status, response_body))
+    
+    conn.commit()
+    return session_id
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process sensitive sessions and optionally generate OpenAPI specs.")
     parser.add_argument("saz_file", help="Path to the SAZ file")
-    parser.add_argument("db_name", help="Name of the SQLite database (e.g., requests.db)")
-    parser.add_argument("--generate_openapi", action="store_true", help="Generate OpenAPI specifications for sensitive sessions")
-    parser.add_argument("--output_dir", default="openapi_specs", help="Directory to save the OpenAPI specs (default: ./openapi_specs)")
+    
+    # Set default database name
+    parser.add_argument("-o", "--db_name", default="results.db", help="Name of the SQLite database (default: results.db)")
+    
+    # Default values added for keyword and domain files
+    parser.add_argument("--user_keywords_file", default="user_data_dict.txt", help="Path to the user keywords text file (default: user_data_dict.txt)")
+    parser.add_argument("--target_domains_file", default="target_domains_dict.txt", help="Path to the target domains text file (default: target_domains_dict.txt)")
 
     args = parser.parse_args()
 
+    # Load user keywords and target domains from files
+    user_keywords = load_keywords_from_file(args.user_keywords_file)
+    target_domains = load_target_domains_from_file(args.target_domains_file)
+
     # Create or connect to the SQLite database
     conn = create_database(args.db_name)
-    extract_saz_and_make_requests(args.saz_file, conn)
 
-    if args.generate_openapi:
-        os.makedirs(args.output_dir, exist_ok=True)
-        chatgpt.process_sensitive_sessions_and_generate_openapi(args.db_name, args.output_dir)
+    # Process the SAZ file
+    extract_saz_and_store(args.saz_file, conn, user_keywords, target_domains)
 
     conn.close()
+

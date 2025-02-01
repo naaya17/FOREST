@@ -1,0 +1,3 @@
+graph.microsoft.com
+live.com
+sharepoint.com
