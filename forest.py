@@ -9,9 +9,8 @@ import re
 import json
 from urllib.parse import urlparse
 
-
-# Global set to track unique keys extracted from request URLs
-unique_keys_from_urls = set()
+from openai_api_analyzer import filter_sensitive_responses
+from generate_api_spec import generate_api_spec
 
 def create_database(db_name):
     conn = sqlite3.connect(db_name)
@@ -70,11 +69,17 @@ def create_database(db_name):
 
 def load_keywords_from_file(file_path):
     """Load keywords from a text file and return them as a list."""
+    if not os.path.isfile(file_path):
+        print(f"Warning: Keywords file '{file_path}' not found. Using an empty list.")
+        return []
     with open(file_path, 'r') as f:
         return [line.strip().lower() for line in f if line.strip()]
 
 def load_target_domains_from_file(file_path):
     """Load target domains from a text file and return them as a list."""
+    if not os.path.isfile(file_path):
+        print(f"Warning: Target domains file '{file_path}' not found. Using an empty list.")
+        return []
     with open(file_path, 'r') as f:
         return [line.strip().lower() for line in f if line.strip()]
 
@@ -157,22 +162,32 @@ def store_cookies(conn, session_id, host, headers):
                 store_key_value_pairs(conn, "cookies", session_id, host, key.strip().lower(), value.strip())
 
 def is_user_data(response_text, user_keywords):
-    """Determine if the response contains user-related data based on keywords or JSON structure."""
-    # Check for keywords in the plain text response
-    if any(keyword in response_text.lower() for keyword in user_keywords):
+    # Regex patterns for sensitive data detection (email, phone, credit card)
+    sensitive_patterns = [
+        r'[\w\.-]+@[\w\.-]+',  # Email pattern
+        r'\b\d{10,11}\b',      # Phone number (10-11 digits)
+        r'\b\d{16}\b'          # Credit card number (16 digits)
+    ]
+
+    # Detect sensitive data using regex
+    for pattern in sensitive_patterns:
+        if re.search(pattern, response_text):
+            print(f"Sensitive data detected using regex: {pattern}")
+            return True
+
+    # Detect based on keywords
+    if user_keywords and any(keyword in response_text.lower() for keyword in user_keywords):
         return True
 
-    # If JSON, try to find relevant keys
+    # Detect based on JSON structure
     try:
         data = json.loads(response_text)
-        if isinstance(data, dict):
-            # Check if any keys match known user-related fields
-            if any(key.lower() in user_keywords for key in data.keys()):
-                return True
+        if user_keywords and isinstance(data, dict) and any(key.lower() in user_keywords for key in data.keys()):
+            return True
     except json.JSONDecodeError:
-        pass  # If not JSON, skip this check
+        pass
 
-    return False
+    return not user_keywords  # If no keywords, consider all responses as candidates
 
 def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains):
     temp_dir = "extracted_saz"
@@ -207,10 +222,13 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains):
                 print(f"Skipping session {session_id} - Invalid response")
                 continue
 
-            # Check if the response contains user-related data
-            if is_user_data(response_body, user_keywords):
-                print("User-related data found in response.")
-                #TODO: skip session
+            # Check if the response contains user-related data based on local keywords
+            if not is_user_data(response_body, user_keywords):
+                continue  # Skip if no user-related data is found locally
+
+            # Check if the response contains sensitive data using ChatGPT
+            if not filter_sensitive_responses(protocol + host + url, response_body):
+                continue  # Skip if ChatGPT finds no sensitive data
 
             # Store session data
             session_id = store_session_in_db(db_conn, session_id, method, protocol, host, url, body, response_status, response_body)
@@ -317,6 +335,7 @@ def parse_request(request_lines, body):
 
     return method, protocol, host, url, headers, body
 
+#TODO: 보내야 하는 경우가 있으려나? 필수 파라미터 체크용
 def send_request(method, full_url, headers, body):
     """Send the HTTP request using Python requests."""
     try:
@@ -354,8 +373,17 @@ if __name__ == "__main__":
     parser.add_argument("--user_keywords_file", default="user_data_dict.txt", help="Path to the user keywords text file (default: user_data_dict.txt)")
     parser.add_argument("--target_domains_file", default="target_domains_dict.txt", help="Path to the target domains text file (default: target_domains_dict.txt)")
 
+    parser.add_argument("--generate_open_api_spec", action="store_true", help="Generate OpenAPI specifications after processing the SAZ file")
+    
     args = parser.parse_args()
 
+    # Validate the SAZ file path
+    try:
+        if not os.path.isfile(args.saz_file):
+            raise FileNotFoundError(f"The provided path is not a file: {args.saz_file}")
+    except FileNotFoundError as e:
+        print(e)
+        exit(1)
     # Load user keywords and target domains from files
     user_keywords = load_keywords_from_file(args.user_keywords_file)
     target_domains = load_target_domains_from_file(args.target_domains_file)
@@ -365,6 +393,9 @@ if __name__ == "__main__":
 
     # Process the SAZ file
     extract_saz_and_store(args.saz_file, conn, user_keywords, target_domains)
+
+    if args.generate_open_api_spec:
+        generate_api_spec(conn)
 
     conn.close()
 

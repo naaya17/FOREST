@@ -5,3 +5,4 @@ tokens
 __pycache__/
 results.db
 extracted_saz/
+openapi_specs/
