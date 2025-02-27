@@ -4,68 +4,23 @@ import gzip
 import requests
 import sqlite3
 import shutil
+import datetime
 import argparse
 import re
 import json
-from urllib.parse import urlparse
+from tqdm import tqdm
+from urllib.parse import urlparse, parse_qs
 
+from db_schema import create_database
 from openai_api_analyzer import filter_sensitive_responses
+from test_required_paramters import test_required_parameters
 from generate_api_spec import generate_api_spec
 
-def create_database(db_name):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
 
-    # Create tables
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            method TEXT,
-            protocol TEXT,
-            host TEXT,
-            url TEXT,
-            request_body TEXT,
-            response_status INTEGER,
-            response_body TEXT,
-            is_sensitive INTEGER DEFAULT 0
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS headers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            host TEXT,
-            key TEXT,
-            value TEXT,
-            FOREIGN KEY (session_id) REFERENCES sessions (id)
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS response_headers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            host TEXT,
-            key TEXT,
-            value TEXT,
-            FOREIGN KEY (session_id) REFERENCES sessions (id)
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS cookies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            host TEXT,
-            key TEXT,
-            value TEXT,
-            FOREIGN KEY (session_id) REFERENCES sessions (id)
-        )
-    ''')
-
-    conn.commit()
-    return conn
+def get_run_id_hour():
+    now = datetime.datetime.now()
+    truncated = now.replace(minute=0, second=0, microsecond=0)
+    return truncated.strftime("run_%Y%m%d_%H00")
 
 def load_keywords_from_file(file_path):
     """Load keywords from a text file and return them as a list."""
@@ -110,56 +65,156 @@ def read_response_file(response_file):
         if ':' in line:
             key, value = line.split(':', 1)
             headers[key.strip().lower()] = value.strip()
-
-    # Handle gzip-compressed responses
-    if 'content-encoding' in headers and headers['content-encoding'].lower() == 'gzip':
+    
+     # Check for chunked transfer encoding
+    if 'transfer-encoding' in headers and 'chunked' in headers['transfer-encoding'].lower():
+        print(f"Decoding chunked response: {response_file}")
         try:
-            print(f"Decompressing gzip response for {response_file}...")
-            body = gzip.decompress(body_part).decode('utf-8', errors='replace')
+            body_part = decode_chunked_data(body_part)
         except Exception as e:
-            print(f"Failed to decompress gzip response: {e}")
-            body = ""
-    else:
-        body = body_part.decode('utf-8', errors='replace')
+            print(f"[WARNING] Failed to decode chunked data: {e}")
+
+    # Check for gzip encoding
+    if 'content-encoding' in headers and 'gzip' in headers['content-encoding'].lower():
+        print(f"Decompressing gzip response: {response_file}")
+        try:
+            body_part = gzip.decompress(body_part)
+        except Exception as e:
+            print(f"[WARNING] Failed to decompress gzip data: {e}")
+            body_part = b""
+
+    # Decode the final body bytes to UTF-8 string
+    body = body_part.decode('utf-8', errors='replace')
 
     return status_code, headers, body
 
-def store_key_value_pairs(conn, table_name, session_id, host, key, value):
-    """Store (session_id, host, key, value) pairs in the specified table, avoiding duplicates based on (host, key, value)."""
+def decode_chunked_data(raw_data):
+    """Decodes raw data using Chunked Transfer Encoding."""
+    decoded = b""
+    idx = 0
+    length = len(raw_data)
+
+    while True:
+        # Find the chunk-size line ending
+        line_end = raw_data.find(b"\r\n", idx)
+        if line_end == -1:
+            # Invalid chunked format or incomplete data
+            break
+
+        # Extract the chunk-size in hex form (e.g. "2fd")
+        chunk_size_hex = raw_data[idx:line_end].decode("utf-8").strip()
+        idx = line_end + 2  # move past '\r\n'
+
+        if not chunk_size_hex:
+            # If chunk_size_hex is empty, there's a format problem
+            break
+
+        try:
+            # Convert the chunk size from hex to an integer
+            chunk_size = int(chunk_size_hex, 16)
+        except ValueError:
+            # If conversion fails, it's not valid chunked data
+            break
+
+        if chunk_size == 0:
+            # A size of 0 indicates the final chunk (end of data)
+            break
+
+        # Extract the chunk data
+        chunk_data = raw_data[idx:idx + chunk_size]
+        decoded += chunk_data
+        idx += chunk_size
+
+        # Skip the trailing '\r\n' after each chunk
+        if idx + 2 <= length and raw_data[idx:idx + 2] == b"\r\n":
+            idx += 2
+
+    return decoded
+
+def store_headers(conn, run_id, host, path, headers_dict):
+    """
+    Insert (run_id, host, path, key, value) for request headers
+    """
     cursor = conn.cursor()
-
-    # Check for duplicates based on (host, key, value) only
-    cursor.execute(f'''
-        SELECT 1 FROM {table_name} 
-        WHERE host = ? AND key = ? AND value = ?
-    ''', (host, key, value))
-
-    # Insert the (session_id, host, key, value) only if no duplicates exist
-    if not cursor.fetchone():
-        cursor.execute(f'''
-            INSERT INTO {table_name} (session_id, host, key, value)
-            VALUES (?, ?, ?, ?)
-        ''', (session_id, host, key, value))
-
+    for k, v in headers_dict.items():
+        try:
+            cursor.execute('''
+                INSERT INTO headers (run_id, host, path, key, value)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (run_id, host, path, k, v))
+        except sqlite3.IntegrityError:
+            pass
     conn.commit()
 
-def store_headers(conn, session_id, host, headers):
-    for key, value in headers.items():
-        store_key_value_pairs(conn, "headers", session_id, host, key, value)
+def store_response_headers(conn, run_id, host, path, resp_headers_dict):
+    cursor = conn.cursor()
+    for k, v in resp_headers_dict.items():
+        try:
+            cursor.execute('''
+                INSERT INTO response_headers (run_id, host, path, key, value)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (run_id, host, path, k, v))
+        except sqlite3.IntegrityError:
+            pass
+    conn.commit()
 
-def store_response_headers(conn, session_id, host, response_headers):
-    for key, value in response_headers.items():
-        store_key_value_pairs(conn, "response_headers", session_id, host, key, value)
+def store_cookies(conn, run_id, host, path, headers_dict):
+    """
+    If 'Cookie' in headers, split by ';' and store as (run_id, host, path, key, value).
+    """
+    cursor = conn.cursor()
+    lower_dict = {k.lower(): v for k, v in headers_dict.items()}
+    if 'cookie' not in lower_dict:
+        return
 
-def store_cookies(conn, session_id, host, headers):
-    headers_lower = {k.lower(): v for k, v in headers.items()}
-    
-    if 'cookie' in headers_lower:
-        cookies = headers_lower['cookie'].split('; ')
-        for cookie in cookies:
-            if '=' in cookie:
-                key, value = cookie.split('=', 1)
-                store_key_value_pairs(conn, "cookies", session_id, host, key.strip().lower(), value.strip())
+    cookie_str = lower_dict['cookie']
+    cookie_pairs = cookie_str.split(';')
+    for pair in cookie_pairs:
+        pair = pair.strip()
+        if '=' in pair:
+            ckey, cval = pair.split('=', 1)
+            ckey = ckey.strip()
+            cval = cval.strip()
+            try:
+                cursor.execute('''
+                    INSERT INTO cookies (run_id, host, path, key, value)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (run_id, host, path, ckey, cval))
+            except sqlite3.IntegrityError:
+                pass
+    conn.commit()
+
+def extract_get_params_from_url(path, query):
+    """
+    Given path and query separately, parse the query string to get param dict.
+    """
+    params = {}
+    if query:
+        q_dict = parse_qs(query)
+        for k, v_list in q_dict.items():
+            if v_list:
+                params[k] = v_list[0]
+    return params
+
+def store_request_params(conn, run_id, host, path, query):
+    """
+    Parse query into param_name, param_value and store in request_params
+    as (run_id, host, path, param_name, param_value).
+    """
+    params_dict = extract_get_params_from_url(path, query)
+    if not params_dict:
+        return
+
+    cursor = conn.cursor()
+    for p_name, p_value in params_dict.items():
+        try:
+            cursor.execute('''
+                INSERT INTO request_params (run_id, host, path, param_name, param_value)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (run_id, host, path, p_name, p_value))
+        except sqlite3.IntegrityError:
+            pass
+    conn.commit()
 
 def is_user_data(response_text, user_keywords):
     # Regex patterns for sensitive data detection (email, phone, credit card)
@@ -189,9 +244,12 @@ def is_user_data(response_text, user_keywords):
 
     return not user_keywords  # If no keywords, consider all responses as candidates
 
-def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains):
+def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains, run_id=None):
     temp_dir = "extracted_saz"
     os.makedirs(temp_dir, exist_ok=True)
+
+    if not run_id:
+        run_id = get_run_id_hour()
 
     try:
         with zipfile.ZipFile(saz_file, 'r') as saz_zip:
@@ -200,25 +258,25 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains):
         raw_dir = os.path.join(temp_dir, 'raw')
         session_files = [os.path.join(raw_dir, f) for f in os.listdir(raw_dir) if f.endswith('_c.txt')]
 
-        for client_file in session_files:
+        for client_file in tqdm(session_files, desc="Processing sessions", unit="session"):
             session_id = os.path.basename(client_file).split('_')[0]
             response_file = os.path.join(raw_dir, f"{session_id}_s.txt")
 
             print(f"Processing session: {session_id}")
 
             # Read the request and response files
-            request_lines, body = read_client_file(client_file)
-            response_status, response_headers, response_body = read_response_file(response_file)
+            request_lines, request_body = read_client_file(client_file)
+            response_status, resp_headers, response_body = read_response_file(response_file)
 
-            method, protocol, host, url, headers, body = parse_request(request_lines, body)
+            method, protocol, host, path, query, req_headers = parse_request(request_lines)
 
             # Check if the request is relevant to the target domains
-            if target_domains and not is_relevant_request(host, url, headers, target_domains):
+            if target_domains and not is_relevant_request(host, path, query, req_headers, target_domains):
                 print(f"Skipping session {session_id} - Not relevant to target domains")
                 continue
 
             # Check if the response is valid based on headers, content type, and sensitive keywords
-            if not is_valid_response(response_headers, response_body):
+            if not is_valid_response(resp_headers, response_body):
                 print(f"Skipping session {session_id} - Invalid response")
                 continue
 
@@ -226,17 +284,19 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains):
             if not is_user_data(response_body, user_keywords):
                 continue  # Skip if no user-related data is found locally
 
+            full_path_query = path + ("?" + query if query else "")
             # Check if the response contains sensitive data using ChatGPT
-            if not filter_sensitive_responses(protocol + host + url, response_body):
+            if not filter_sensitive_responses(protocol + host + full_path_query, response_body):
                 continue  # Skip if ChatGPT finds no sensitive data
 
             # Store session data
-            session_id = store_session_in_db(db_conn, session_id, method, protocol, host, url, body, response_status, response_body)
+            session_pk = store_session_in_db(db_conn, run_id, session_id, method, protocol, host, path, query, request_body, response_status, response_body)
 
             # Store request headers, response headers, and cookies in the database
-            store_headers(db_conn, session_id, host, headers)
-            store_response_headers(db_conn, session_id, host, response_headers)
-            store_cookies(db_conn, session_id, host, headers)
+            store_request_params(db_conn, run_id, host, path, query)
+            store_headers(db_conn, run_id, host, path, req_headers)
+            store_response_headers(db_conn, run_id, host, path, resp_headers)
+            store_cookies(db_conn, run_id, host, path, req_headers)
 
             print(f"Stored session {session_id} - Response status: {response_status}")
 
@@ -265,11 +325,9 @@ def is_valid_response(response_headers, response_body):
 
     return True
 
-def is_relevant_request(host, url, headers, target_domains):
+def is_relevant_request(host, path, query, headers, target_domains):
     """Check if the request is relevant based on host, URL, or headers."""
-    combined_text = f"{host} {url} {' '.join(headers.values())}".lower()
-
-    # Check for target domains in the combined text
+    combined_text = f"{host} {path} {query} {' '.join(headers.values())}".lower()
     return any(domain.lower() in combined_text for domain in target_domains)
 
 def read_client_file(client_file):
@@ -309,7 +367,7 @@ def read_client_file(client_file):
 
     return request_lines, body
 
-def parse_request(request_lines, body):
+def parse_request(request_lines):
     """Parse the HTTP request into method, protocol, host, URL, headers, and body."""
     
     # Split the first line into HTTP method, URL, and protocol
@@ -323,17 +381,20 @@ def parse_request(request_lines, body):
             headers[key.strip()] = value.strip()
 
     # Check if the URL is absolute or relative
-    parsed_url = urlparse(raw_url)
-    if parsed_url.netloc:  # Absolute URL
-        protocol = f"{parsed_url.scheme}://"
-        host = parsed_url.netloc
-        url = parsed_url.path + ("?" + parsed_url.query if parsed_url.query else "")
-    else:  # Relative URL
-        protocol = "https://" if headers.get("Host", "").startswith("https") else "http://"
+    parsed = urlparse(raw_url)
+    if parsed.netloc:
+        protocol = f"{parsed.scheme}://"
+        host = parsed.netloc
+        path = parsed.path
+        query = parsed.query
+    else:
         host = headers.get("Host", "")
-        url = raw_url
+        protocol = "https://" if host.startswith("https") else "http://"
+        p = urlparse(raw_url)
+        path = p.path
+        query = p.query
 
-    return method, protocol, host, url, headers, body
+    return method, protocol, host, path, query, headers
 
 #TODO: 보내야 하는 경우가 있으려나? 필수 파라미터 체크용
 def send_request(method, full_url, headers, body):
@@ -350,17 +411,25 @@ def send_request(method, full_url, headers, body):
         print(f"Error sending request to {full_url}: {e}")
         return None
     
-def store_session_in_db(conn, session_id, method, protocol, host, url, request_body, response_status, response_body):
+def store_session_in_db(conn, run_id, session_id, method, protocol, host, path, query, request_body, response_status, response_body):
+    """
+    Insert into sessions table (run_id, session_id, method, protocol, host, path, query, ...)
+    Returns pk.
+    """
     cursor = conn.cursor()
-    
     cursor.execute('''
-        INSERT INTO sessions (id, method, protocol, host, url, request_body, response_status, response_body)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (session_id, method, protocol, host, url, request_body, response_status, response_body))
-    
+        INSERT INTO sessions (
+            run_id, session_id, method, protocol,
+            host, path, query,
+            request_body, response_status, response_body
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        run_id, session_id, method, protocol,
+        host, path, query,
+        request_body, response_status, response_body
+    ))
     conn.commit()
-    return session_id
-
+    return cursor.lastrowid
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process sensitive sessions and optionally generate OpenAPI specs.")
@@ -373,6 +442,8 @@ if __name__ == "__main__":
     parser.add_argument("--user_keywords_file", default="user_data_dict.txt", help="Path to the user keywords text file (default: user_data_dict.txt)")
     parser.add_argument("--target_domains_file", default="target_domains_dict.txt", help="Path to the target domains text file (default: target_domains_dict.txt)")
 
+    parser.add_argument("--test_required_parameters", action="store_true", help="Test if headers/cookies are required by removing them one by one and sending requests")
+    parser.add_argument("--run_id", default=None, help="Specific run_id to filter. Use 'all' for all run_id, or omit to use latest.")
     parser.add_argument("--generate_open_api_spec", action="store_true", help="Generate OpenAPI specifications after processing the SAZ file")
     
     args = parser.parse_args()
@@ -394,6 +465,9 @@ if __name__ == "__main__":
     # Process the SAZ file
     extract_saz_and_store(args.saz_file, conn, user_keywords, target_domains)
 
+    if args.test_required_parameters:
+        test_required_parameters(conn)
+        
     if args.generate_open_api_spec:
         generate_api_spec(conn)
 
