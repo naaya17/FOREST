@@ -79,6 +79,5 @@ def create_database(db_name):
             UNIQUE(run_id, host, path, param_name, param_value)
         )
     ''')
-
     conn.commit()
     return conn

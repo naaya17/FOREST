@@ -1,7 +1,6 @@
 import zipfile
 import os
 import gzip
-import requests
 import sqlite3
 import shutil
 import datetime
@@ -304,23 +303,23 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains, run_
         shutil.rmtree(temp_dir)
 
 def is_valid_response(response_headers, response_body):
-    valid_content_types = {"text/plain", "application/json", "text/html", "text/xml"}
-    sensitive_header_keys = ["location", "access_token", "refresh_token", "authorization"]
+    """
+    Consider a response valid if:
+      - The Content-Type is either application/json or text/xml
+      - The response body length is not zero
+    """
+    valid_content_types = {"application/json", "text/xml"}
 
-    # Check sensitive keys in response headers
-    for key, value in response_headers.items():
-        if any(sensitive_key in key.lower() for sensitive_key in sensitive_header_keys):
-            print(f"Sensitive key detected in response headers: {key} -> {value}")
-            return True
-
-    # Extract Content-Type from response headers
+    # Extract Content-Type from response headers (case-insensitive)
     content_type = response_headers.get("content-type", "").split(";")[0].strip().lower()
 
-    # Content-Length check
-    content_length = len(response_body)
+    # Check if content type is JSON or XML
+    if content_type not in valid_content_types:
+        return False
 
-    # Validate Content-Type and minimum body length
-    if content_type not in valid_content_types and content_length < 10:
+    # Check if body is non-empty
+    content_length = len(response_body)
+    if content_length == 0:
         return False
 
     return True
@@ -396,21 +395,6 @@ def parse_request(request_lines):
 
     return method, protocol, host, path, query, headers
 
-#TODO: 보내야 하는 경우가 있으려나? 필수 파라미터 체크용
-def send_request(method, full_url, headers, body):
-    """Send the HTTP request using Python requests."""
-    try:
-        if method == "GET":
-            return requests.get(full_url, headers=headers, allow_redirects=False)
-        elif method == "POST":
-            return requests.post(full_url, headers=headers, data=body)
-        else:
-            print(f"Skipping unsupported or unnecessary HTTP method: {method}")
-            return None
-    except Exception as e:
-        print(f"Error sending request to {full_url}: {e}")
-        return None
-    
 def store_session_in_db(conn, run_id, session_id, method, protocol, host, path, query, request_body, response_status, response_body):
     """
     Insert into sessions table (run_id, session_id, method, protocol, host, path, query, ...)
