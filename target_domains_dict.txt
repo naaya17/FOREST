@@ -1,3 +1,5 @@
-graph.microsoft.com
+microsoft.com
 live.com
 sharepoint.com
+office.com
+127.0.0.1

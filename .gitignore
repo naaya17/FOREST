@@ -6,4 +6,5 @@ __pycache__/
 results.db
 extracted_saz/
 openapi_specs/
+results1.db
 backup.py

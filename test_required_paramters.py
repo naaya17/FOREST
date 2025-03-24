@@ -59,10 +59,11 @@ def test_required_parameters(db_conn, run_id=None, delay=1):
             test_status = send_test_request(method, full_url, modified_hdrs, ccks, req_body_str, delay=delay)
             is_error = (baseline_status < 400) and (test_status >= 400)
             if is_error:
+                print(f"[REQUIRED] Header {hkey} is REQUIRED (baseline={baseline_status}, no-header={test_status})")
                 update_header_is_required(db_conn, actual_run_id, host, path, hkey, 1)
-                print(f"Header '{hkey}' => REQUIRED (removal => {test_status})")
             else:
-                print(f"Header '{hkey}' => removal => status {test_status}")
+                print(f"[OPTIONAL] Header {hkey} is NOT required (status {test_status})")
+
 
         # 5) Test each cookie by removing it
         for ckey in list(ccks.keys()):
@@ -70,10 +71,12 @@ def test_required_parameters(db_conn, run_id=None, delay=1):
             test_status = send_test_request(method, full_url, hdrs, modified_ck, req_body_str, delay=delay)
             is_error = (baseline_status < 400) and (test_status >= 400)
             if is_error:
+                print(f"[REQUIRED] Cookie {ckey} is REQUIRED (baseline={baseline_status}, no-cookie={test_status})")
                 update_cookie_is_required(db_conn, actual_run_id, host, path, ckey, 1)
-                print(f"Cookie '{ckey}' => REQUIRED (removal => {test_status})")
             else:
-                print(f"Cookie '{ckey}' => removal => status {test_status}")
+                print(f"[OPTIONAL] Cookie {ckey} is NOT required (status {test_status})")
+
+
 
 
 def build_full_url(protocol, host, path, query):
@@ -167,21 +170,33 @@ def update_header_is_required(db_conn, run_id, host, path, hkey, is_req):
     Updates the 'headers' table, setting is_required = is_req for the specified record.
     """
     c = db_conn.cursor()
+    print(f"[DEBUG] Trying to update header: run_id={run_id}, host={host}, path={path}, key={hkey}, is_required={is_req}")
+    
     c.execute("""
         UPDATE headers
         SET is_required = ?
         WHERE run_id = ? AND host = ? AND path = ? AND key = ?
     """, (is_req, run_id, host, path, hkey))
+    
     db_conn.commit()
+    
+    print(f"[DEBUG] Update result: {c.rowcount} row(s) affected")
+
 
 def update_cookie_is_required(db_conn, run_id, host, path, ckey, is_req):
     """
     Updates the 'cookies' table, setting is_required = is_req for the specified record.
     """
     c = db_conn.cursor()
+    print(f"[DEBUG] Trying to update cookie: run_id={run_id}, host={host}, path={path}, key={ckey}, is_required={is_req}")
+    
     c.execute("""
         UPDATE cookies
         SET is_required = ?
         WHERE run_id = ? AND host = ? AND path = ? AND key = ?
     """, (is_req, run_id, host, path, ckey))
+    
     db_conn.commit()
+    
+    print(f"[DEBUG] Update result: {c.rowcount} row(s) affected")
+
