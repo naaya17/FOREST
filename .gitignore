@@ -9,8 +9,7 @@ openapi_specs/
 openapi_specs.backup/
 openapi_specs*
 
-FOR
-
+onedrive_api.py
 test.py
 *.db
 *.log
