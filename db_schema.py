@@ -21,8 +21,11 @@ def create_database(db_name):
             host TEXT,
             path TEXT,
             query TEXT,
+            request_headers TEXT,
             request_body TEXT,
+            is_body_required INTEGER DEFAULT 0,
             response_status INTEGER,
+            response_headers TEXT,
             response_body TEXT
         )
     ''')

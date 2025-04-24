@@ -3,8 +3,14 @@ tokens
 .vscode
 .env
 __pycache__/
-results.db
+
 extracted_saz/
 openapi_specs/
-results1.db
-backup.py
+openapi_specs.backup/
+openapi_specs*
+
+FOR
+
+test.py
+*.db
+*.log

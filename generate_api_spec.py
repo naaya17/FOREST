@@ -2,6 +2,12 @@ import os
 import re
 import json
 from tqdm import tqdm
+from collections import defaultdict, Counter
+
+from loggers import setup_logger
+
+logger = setup_logger(__name__)
+
 
 def generate_api_spec(db_conn, output_dir="openapi_specs", run_id=None):
     """
@@ -13,13 +19,13 @@ def generate_api_spec(db_conn, output_dir="openapi_specs", run_id=None):
     if run_id is None:
         run_id = get_latest_run_id(db_conn)
         if run_id is None:
-            print("[ERROR] No run_id found in sessions. Exiting.")
+            logger.error("No run_id found in sessions. Exiting.")
             return
-        print(f"[INFO] Using latest_run_id: {run_id}")
+        logger.info(f"Using latest_run_id: {run_id}")
     elif run_id.lower() == "all":
-        print("[INFO] Processing ALL run_id values (no filtering).")
+        logger.info("Processing ALL run_id values (no filtering).")
     else:
-        print(f"[INFO] Processing specific run_id: {run_id}")
+        logger.info(f"Processing specific run_id: {run_id}")
 
     os.makedirs(output_dir, exist_ok=True)
     cursor = db_conn.cursor()
@@ -28,14 +34,14 @@ def generate_api_spec(db_conn, output_dir="openapi_specs", run_id=None):
     if run_id == "all":
         cursor.execute("""
             SELECT pk, method, protocol, host, path, query,
-                   request_body, response_status, response_body, run_id
+                   request_body, response_status, response_body, run_id, is_body_required
             FROM sessions
             ORDER BY pk
         """)
     else:
         cursor.execute("""
             SELECT pk, method, protocol, host, path, query,
-                   request_body, response_status, response_body, run_id
+                   request_body, response_status, response_body, run_id, is_body_required
             FROM sessions
             WHERE run_id = ?
             ORDER BY pk
@@ -46,37 +52,9 @@ def generate_api_spec(db_conn, output_dir="openapi_specs", run_id=None):
     # We'll store each session's info here
     sessions_info = []
 
-    # JSON-based path parameterization
-    for row in tqdm(rows, desc="Processing sessions", unit="session"):
-        pk, method, protocol, host, path, query, req_body, resp_status, resp_body, actual_run_id = row
-
-        # Combine path and query for reference
-        path_with_query = path
-        if query:
-            path_with_query += "?" + query
-        full_url = f"{protocol}{host}{path_with_query}"
-
-        # Default: original path
+    for row in tqdm(rows, desc="Generating OpenAPI specs", unit="session"):
+        pk, method, protocol, host, path, query, req_body, resp_status, resp_body, actual_run_id, is_body_required = row
         param_path = path
-
-        # If request_body is JSON, attempt parameterization
-        req_content_type, _ = parse_body_to_schema(req_body)
-        if req_content_type == "application/json":
-            try:
-                req_obj = json.loads(req_body)
-                param_path = parameterize_path_with_json(param_path, req_obj)
-            except:
-                pass
-
-        # If response_body is JSON, attempt parameterization
-        resp_content_type, _ = parse_body_to_schema(resp_body)
-        if resp_content_type == "application/json":
-            try:
-                resp_obj = json.loads(resp_body)
-                param_path = parameterize_path_with_json(param_path, resp_obj)
-            except:
-                pass
-
         sessions_info.append({
             "pk": pk,
             "method": method,
@@ -87,7 +65,8 @@ def generate_api_spec(db_conn, output_dir="openapi_specs", run_id=None):
             "request_body": req_body,
             "response_status": resp_status,
             "response_body": resp_body,
-            "final_path": param_path  # The final path after JSON-based parameterization
+            "final_path": param_path,
+            "is_body_required": is_body_required
         })
 
     # Build and save OpenAPI specs
@@ -129,6 +108,7 @@ def generate_api_spec(db_conn, output_dir="openapi_specs", run_id=None):
                     method.lower(): {
                         "parameters": header_params + cookie_params + query_params,
                         "requestBody": {
+                            "required": bool(is_body_required),
                             "content": {
                                 req_content_type: {
                                     "schema": request_schema
@@ -170,8 +150,9 @@ def generate_api_spec(db_conn, output_dir="openapi_specs", run_id=None):
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(openapi_spec, f, indent=4)
 
-        print(f"[INFO] Final spec saved => {output_file}")
-
+        logger.info(f"[INFO] Final spec saved => {output_file}")
+     
+    process_all_spec_files(output_dir)
 
 # ---------------------------------------------------------------------
 # UTILITY FUNCTIONS
@@ -279,26 +260,6 @@ def extract_response_headers(db_conn, host, path, run_id):
         }
     return resp_headers
 
-
-def parameterize_path_with_json(original_path, example_data):
-    """
-    1) Flatten the example_data into (key, value) pairs where value is a string.
-    2) Split the original_path by '/'.
-    3) If a path segment == value, replace that segment with {key}.
-    4) Return the updated path.
-    """
-    kv_pairs = flatten_json_to_pairs(example_data)
-    segments = original_path.strip("/").split("/")
-
-    for i, seg in enumerate(segments):
-        for (k, v) in kv_pairs:
-            if seg == v:
-                segments[i] = "{" + k + "}"
-                break
-
-    return "/" + "/".join(segments)
-
-
 def flatten_json_to_pairs(data, prefix=""):
     """
     Recursively gathers (key, value) pairs from a JSON-like object.
@@ -314,10 +275,11 @@ def flatten_json_to_pairs(data, prefix=""):
     pairs = []
     if isinstance(data, dict):
         for k, v in data.items():
+            full_key = prefix + k if prefix else k
             if isinstance(v, str):
-                pairs.append((k, v))
+                pairs.append((full_key, v))
             elif isinstance(v, (dict, list)):
-                pairs.extend(flatten_json_to_pairs(v, prefix + k + "."))
+                pairs.extend(flatten_json_to_pairs(v, full_key + "."))
     elif isinstance(data, list):
         for item in data:
             pairs.extend(flatten_json_to_pairs(item, prefix))
@@ -376,3 +338,55 @@ def generate_json_schema(json_obj):
     elif isinstance(json_obj, bool):
         return {"type": "boolean", "example": json_obj}
     return {"type": "null", "example": None}
+
+def process_all_spec_files(spec_folder):
+    logger.info("[*] Building global value-to-key map...")
+    value_key_counter = defaultdict(Counter)
+    for filename in os.listdir(spec_folder):
+        if not filename.endswith(".json"):
+            continue
+        with open(os.path.join(spec_folder, filename), 'r', encoding='utf-8') as f:
+            try:
+                spec = json.load(f)
+                for path_item in spec.get("paths", {}).values():
+                    for method_item in path_item.values():
+                        for resp in method_item.get("responses", {}).values():
+                            for content in resp.get("content", {}).values():
+                                schema = content.get("schema", {})
+                                example = schema.get("example", {})
+                                if isinstance(example, str):
+                                    try:
+                                        example = json.loads(example)
+                                    except:
+                                        continue
+                                for k, v in flatten_json_to_pairs(example):
+                                    if isinstance(v, str) and len(v) >= 6:
+                                        value_key_counter[v][k] += 1
+            except Exception as e:
+                logger.warn(f"Failed to process {filename}: {e}")
+
+    value_to_key = {
+        v: keys.most_common(1)[0][0] for v, keys in value_key_counter.items()
+    }
+
+    logger.info("[*] Rewriting paths in all spec files...")
+    for filename in os.listdir(spec_folder):
+        if not filename.endswith(".json"):
+            continue
+        filepath = os.path.join(spec_folder, filename)
+        with open(filepath, 'r', encoding='utf-8') as f:
+            spec = json.load(f)
+        updated_paths = {}
+        for path, methods in spec.get("paths", {}).items():
+            segments = path.strip("/").split("/")
+            for i, seg in enumerate(segments):
+                if seg in value_to_key:
+                    segments[i] = "{" + value_to_key[seg] + "}"
+            new_path = "/" + "/".join(segments)
+            if new_path != path:
+                logger.info(f"🔁 Path updated: {path}  →  {new_path}")
+            updated_paths[new_path] = methods
+        spec["paths"] = updated_paths
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(spec, f, indent=2)
+        logger.info(f"[OK] Rewritten paths in {filename}")

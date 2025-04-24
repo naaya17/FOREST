@@ -1,4 +1,5 @@
 import zipfile
+import logging
 import os
 import gzip
 import sqlite3
@@ -10,11 +11,13 @@ import json
 from tqdm import tqdm
 from urllib.parse import urlparse, parse_qs
 
+from loggers import setup_logger
 from db_schema import create_database
 from openai_api_analyzer import filter_sensitive_responses
 from test_required_paramters import test_required_parameters
 from generate_api_spec import generate_api_spec
 
+logger = setup_logger(__name__)
 
 def get_run_id_hour():
     now = datetime.datetime.now()
@@ -24,7 +27,7 @@ def get_run_id_hour():
 def load_keywords_from_file(file_path):
     """Load keywords from a text file and return them as a list."""
     if not os.path.isfile(file_path):
-        print(f"Warning: Keywords file '{file_path}' not found. Using an empty list.")
+        logger.warning(f"Warning: Keywords file '{file_path}' not found. Using an empty list.")
         return []
     with open(file_path, 'r') as f:
         return [line.strip().lower() for line in f if line.strip()]
@@ -32,7 +35,7 @@ def load_keywords_from_file(file_path):
 def load_target_domains_from_file(file_path):
     """Load target domains from a text file and return them as a list."""
     if not os.path.isfile(file_path):
-        print(f"Warning: Target domains file '{file_path}' not found. Using an empty list.")
+        logger.warning(f"Warning: Target domains file '{file_path}' not found. Using an empty list.")
         return []
     with open(file_path, 'r') as f:
         return [line.strip().lower() for line in f if line.strip()]
@@ -45,10 +48,15 @@ def read_response_file(response_file):
     with open(response_file, 'rb') as f:
         raw_data = f.read()
 
+    if len(raw_data.strip()) == 0:
+        logger.debug(f"[SKIP] Empty response file: {response_file}")
+        return 0, {}, ""
+    
     # Find the end of headers (headers end with \r\n\r\n)
     header_end_index = raw_data.find(b"\r\n\r\n")
     if header_end_index == -1:
-        raise ValueError("Invalid response format: headers not found")
+        logger.debug(f"[SKIP] Invalid response format (no headers): {response_file}")
+        return 0, {}, ""
 
     # Split headers and body
     header_part = raw_data[:header_end_index].decode('utf-8', errors='replace')
@@ -67,7 +75,6 @@ def read_response_file(response_file):
     
      # Check for chunked transfer encoding
     if 'transfer-encoding' in headers and 'chunked' in headers['transfer-encoding'].lower():
-        print(f"Decoding chunked response: {response_file}")
         try:
             body_part = decode_chunked_data(body_part)
         except Exception as e:
@@ -75,11 +82,10 @@ def read_response_file(response_file):
 
     # Check for gzip encoding
     if 'content-encoding' in headers and 'gzip' in headers['content-encoding'].lower():
-        print(f"Decompressing gzip response: {response_file}")
         try:
             body_part = gzip.decompress(body_part)
         except Exception as e:
-            print(f"[WARNING] Failed to decompress gzip data: {e}")
+            logger.warning(f"[WARNING] Failed to decompress gzip data: {e}")
             body_part = b""
 
     # Decode the final body bytes to UTF-8 string
@@ -226,7 +232,7 @@ def is_user_data(response_text, user_keywords):
     # Detect sensitive data using regex
     for pattern in sensitive_patterns:
         if re.search(pattern, response_text):
-            print(f"Sensitive data detected using regex: {pattern}")
+            logger.info(f"Sensitive data detected using regex: {pattern}")
             return True
 
     # Detect based on keywords
@@ -261,8 +267,6 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains, run_
             session_id = os.path.basename(client_file).split('_')[0]
             response_file = os.path.join(raw_dir, f"{session_id}_s.txt")
 
-            print(f"Processing session: {session_id}")
-
             # Read the request and response files
             request_lines, request_body = read_client_file(client_file)
             response_status, resp_headers, response_body = read_response_file(response_file)
@@ -271,12 +275,10 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains, run_
 
             # Check if the request is relevant to the target domains
             if target_domains and not is_relevant_request(host, path, query, req_headers, target_domains):
-                print(f"Skipping session {session_id} - Not relevant to target domains")
                 continue
 
             # Check if the response is valid based on headers, content type, and sensitive keywords
             if not is_valid_response(resp_headers, response_body):
-                print(f"Skipping session {session_id} - Invalid response")
                 continue
 
             # Check if the response contains user-related data based on local keywords
@@ -289,7 +291,7 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains, run_
                 continue  # Skip if ChatGPT finds no sensitive data
 
             # Store session data
-            session_pk = store_session_in_db(db_conn, run_id, session_id, method, protocol, host, path, query, request_body, response_status, response_body)
+            session_pk = store_session_in_db(db_conn, run_id, session_id, method, protocol, host, path, query, req_headers, request_body, response_status, resp_headers, response_body)
 
             # Store request headers, response headers, and cookies in the database
             store_request_params(db_conn, run_id, host, path, query)
@@ -297,7 +299,7 @@ def extract_saz_and_store(saz_file, db_conn, user_keywords, target_domains, run_
             store_response_headers(db_conn, run_id, host, path, resp_headers)
             store_cookies(db_conn, run_id, host, path, req_headers)
 
-            print(f"Stored session {session_id} - Response status: {response_status}")
+            logger.info(f"Stored session {session_id} - Response status: {response_status}")
 
     finally:
         shutil.rmtree(temp_dir)
@@ -334,10 +336,15 @@ def read_client_file(client_file):
     with open(client_file, 'rb') as f:
         raw_data = f.read()
 
+    if len(raw_data.strip()) == 0:
+        logger.debug(f"[SKIP] Empty request file: {client_file}")
+        return {}, ""
+    
     # Find the end of headers (headers end with \r\n\r\n)
     header_end_index = raw_data.find(b"\r\n\r\n")
     if header_end_index == -1:
-        raise ValueError("Invalid request format: headers not found")
+        logger.debug(f"[SKIP] Invalid request format (no headers): {client_file}")
+        return {}, ""
 
     # Split the raw data into header part and body part
     header_part = raw_data[:header_end_index].decode('utf-8', errors='replace')
@@ -355,10 +362,9 @@ def read_client_file(client_file):
     # Check if the body is gzip-compressed
     if "Content-Encoding" in headers and headers["Content-Encoding"].lower() == "gzip":
         try:
-            print("Detected gzip-compressed body, decompressing...")
             body = gzip.decompress(body_part).decode('utf-8', errors='replace')
         except Exception as e:
-            print(f"Failed to decompress gzip body: {e}")
+            logger.error(f"Failed to decompress gzip body: {e}")
             body = ""  # If decompression fails, treat body as empty
     else:
         # If not compressed, decode as plain text
@@ -395,22 +401,26 @@ def parse_request(request_lines):
 
     return method, protocol, host, path, query, headers
 
-def store_session_in_db(conn, run_id, session_id, method, protocol, host, path, query, request_body, response_status, response_body):
+def store_session_in_db(conn, run_id, session_id, method, protocol, host, path, query, request_headers, request_body, response_status, response_headers, response_body):
     """
     Insert into sessions table (run_id, session_id, method, protocol, host, path, query, ...)
     Returns pk.
     """
     cursor = conn.cursor()
+
+    request_headers_json = json.dumps(request_headers or {}, ensure_ascii=False)
+    response_headers_json = json.dumps(response_headers or {}, ensure_ascii=False)
+
     cursor.execute('''
         INSERT INTO sessions (
             run_id, session_id, method, protocol,
-            host, path, query,
-            request_body, response_status, response_body
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            host, path, query, request_headers, request_body, 
+            response_status, response_headers, response_body
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         run_id, session_id, method, protocol,
-        host, path, query,
-        request_body, response_status, response_body
+        host, path, query, request_headers_json, request_body,
+        response_status, response_headers_json, response_body
     ))
     conn.commit()
     return cursor.lastrowid
@@ -430,14 +440,19 @@ if __name__ == "__main__":
     parser.add_argument("--run_id", default=None, help="Specific run_id to filter. Use 'all' for all run_id, or omit to use latest.")
     parser.add_argument("--generate_open_api_spec", action="store_true", help="Generate OpenAPI specifications after processing the SAZ file")
     
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose (DEBUG) logging")
+    
     args = parser.parse_args()
+
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logger = setup_logger(__name__, level=log_level)
 
     # Validate the SAZ file path
     try:
         if not os.path.isfile(args.saz_file):
             raise FileNotFoundError(f"The provided path is not a file: {args.saz_file}")
     except FileNotFoundError as e:
-        print(e)
+        logger.error(e)
         exit(1)
     # Load user keywords and target domains from files
     user_keywords = load_keywords_from_file(args.user_keywords_file)
