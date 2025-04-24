@@ -1,7 +1,7 @@
 # api_schema_tracker.py
 import os
 import json
-import re
+import argparse
 import sqlite3
 import datetime
 from collections import defaultdict
@@ -149,7 +149,7 @@ def build_global_value_map(spec_folder):
                                         collect_examples_from_schema(schema, value_to_keys=global_value_map)
 
             except Exception as e:
-                print(f"❌ 오류 ({filename}): {e}")
+                print(f"Error ({filename}): {e}")
 
     return global_value_map
 
@@ -169,7 +169,6 @@ def extract_schema_keys_from_spec(openapi_spec, global_value_map=None):
                 "response_values": {}
             }
 
-            # 오직 requestBody schema에서만 값을 수집
             request_body_content = details.get("requestBody", {}).get("content", {})
             for content_info in request_body_content.values():
                 schema = content_info.get("schema")
@@ -183,7 +182,6 @@ def extract_schema_keys_from_spec(openapi_spec, global_value_map=None):
                     replaced_keys = replace_values_with_key_names(raw_keys, global_value_map or value_map)
                     method_summary["requestBody"] = replaced_keys
 
-            # 오직 response schema에서만 값을 수집 (headers 무시)
             responses = details.get("responses", {})
             for status, response_info in responses.items():
                 response_content = response_info.get("content", {})
@@ -253,9 +251,9 @@ def store_all_specs_in_folder(spec_folder, db_path="api_history.db"):
                     spec = json.load(f)
                     snapshot_id = generate_snapshot_id(filename)
                     store_spec_to_db(spec, snapshot_id, filename, db_path, global_value_map)
-                    print(f"✅ 저장됨: {filename} → snapshot_id: {snapshot_id}")
+                    print(f"Saved: {filename} → snapshot_id: {snapshot_id}")
             except Exception as e:
-                print(f"❌ 오류 ({filename}): {e}")
+                print(f"Error ({filename}): {e}")
 
 # ------------------------- Comparison ----------------------------------
 
@@ -299,7 +297,6 @@ def compare_all_snapshots(threshold=0.55, db_path="api_history.db"):
             removed_res = sorted(base_res - cur_res)
             added_res = sorted(cur_res - base_res)
 
-            # ✅ baseline 기준 유사도 계산
             sim_score = jaccard_similarity(base_req | base_res, cur_req | cur_res)
 
             cur.execute("""
@@ -317,9 +314,8 @@ def compare_all_snapshots(threshold=0.55, db_path="api_history.db"):
                 group_id, row[0], row[1], row[2]
             ))
 
-            # base_req, base_res = cur_req, cur_res  # 🔁 비슷한 또 다른 순서로 변경되는 경우 이 라인 취소로 해제해 사용가능
+            # base_req, base_res = cur_req, cur_res  
 
-    # ✅ 전역 global_value_map 구성
     global_value_map = defaultdict(list)
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -333,7 +329,6 @@ def compare_all_snapshots(threshold=0.55, db_path="api_history.db"):
             except:
                 continue
 
-    # ✅ raw 키 불러오기 후 치환 적용
     cur.execute("SELECT snapshot_id, path, method, raw_request_keys, raw_response_keys, file_name FROM api_snapshots")
     rows = cur.fetchall()
     endpoints = []
@@ -351,7 +346,6 @@ def compare_all_snapshots(threshold=0.55, db_path="api_history.db"):
             "schema": schema
         })
 
-    # ✅ 기존 그룹 정보 로딩 및 비교
     cur.execute("SELECT group_id FROM api_match_groups")
     all_group_ids = [row[0] for row in cur.fetchall()]
     for gid in all_group_ids:
@@ -407,11 +401,10 @@ def compare_all_snapshots(threshold=0.55, db_path="api_history.db"):
                 "schema": endpoints[i]["schema"], "file": endpoints[i]["file"]
             })
             already_grouped_apis.add(key)
-            newly_updated_groups.add(matched_group_id)  # ✅ 변경된 그룹 다시 비교하도록 등록
+            newly_updated_groups.add(matched_group_id)  
             used[i] = True
             continue
 
-        # 새 그룹 생성
         group = [endpoints[i]]
         used[i] = True
         for j in range(i + 1, len(endpoints)):
@@ -456,10 +449,19 @@ def compare_all_snapshots(threshold=0.55, db_path="api_history.db"):
     conn.close()
 
 
-# ------------------------- 실행 시작점 ---------------------------------
 
 if __name__ == "__main__":
-    SPEC_FOLDER = "./openapi_specs"
-    store_all_specs_in_folder(SPEC_FOLDER)
-    compare_all_snapshots(threshold=0.55)
-    print("🎉 스냅샷 저장 및 비교 완료!")
+    #SPEC_FOLDER = "./openapi_specs"
+
+    parser = argparse.ArgumentParser(description="Store and compare OpenAPI specs for API evolution tracking.")
+    parser.add_argument("--spec_folder", type=str, required=True, help="Path to the folder containing OpenAPI spec files")
+    parser.add_argument("--db", type=str, default="api_history.db", help="Path to the SQLite DB file (default: api_history.db)")
+    parser.add_argument("--threshold", type=float, default=0.55, help="Similarity threshold for grouping (default: 0.55)")
+
+    args = parser.parse_args()
+
+    store_all_specs_in_folder(args.spec_folder, db_path=args.db)
+    compare_all_snapshots(threshold=args.threshold, db_path=args.db)
+
+    #store_all_specs_in_folder(SPEC_FOLDER)
+    #compare_all_snapshots(threshold=0.55)
