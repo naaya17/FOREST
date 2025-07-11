@@ -130,3 +130,9 @@ The tool uses [`python-dotenv`](https://pypi.org/project/python-dotenv/) to load
 
 To prevent accidental commits, ensure `.env` is listed in your `.gitignore`:
 
+```
+.env
+```
+
+This key is used only to classify API responses via GPT models, enhancing the detection of forensic-relevant user data.
+
