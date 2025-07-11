@@ -1,4 +1,4 @@
-# FOREST: A Framework for Inspecting and Tracking RESTful APIs for Forensics and Security Purposes
+#  FOREST: Inspecting and tracking RESTful APIs for constructing a cloud forensic knowledge base
 
 FOREST is a research framework designed to support both digital forensic investigations and proactive security auditing by analyzing RESTful API behaviors. It enables the detection of undocumented endpoints, extraction of user-related data, and generation of OpenAPI specifications through real-world network traffic.
 
