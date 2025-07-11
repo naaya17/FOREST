@@ -1,15 +1,24 @@
-#  FOREST: Inspecting and tracking RESTful APIs for constructing a cloud forensic knowledge base
+# FOREST: Inspecting and tracking RESTful APIs for constructing a cloud forensic knowledge base
 
-FOREST is a research framework designed to support both digital forensic investigations and proactive security auditing by analyzing RESTful API behaviors. It enables the detection of undocumented endpoints, extraction of user-related data, and generation of OpenAPI specifications through real-world network traffic.
+FOREST is a research framework designed to support digital forensic investigations by analyzing RESTful API behaviors. It enables the detection of undocumented endpoints, extraction of user-related data, and generation of OpenAPI specifications through real-world network traffic.
+
 
 ## 🧩 Features
 
 - Detect undocumented (internal) RESTful API endpoints
 - Extract sensitive user-related data from captured HTTP sessions
 - Identify required request headers, cookies, and parameters
-- Convert HTTP traffic into OpenAPI-compatible specifications
+- Generate OpenAPI specifications from HTTP traffic
 - Track changes in request/response schemas across versions
-- Integrate AI-powered contextual analysis for forensic relevance
+- Enable AI-driven contextual classification of API responses
+
+### 🔧 Environment Setup
+
+Before running the analysis scripts, make sure to install required dependencies:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## 🛠️ Main Components
 
@@ -18,7 +27,7 @@ FOREST is a research framework designed to support both digital forensic investi
 | `forest.py`                  | Core engine for parsing HTTP sessions and identifying APIs |
 | `generate_api_spec.py`       | Converts filtered API traffic into OpenAPI Specification format |
 | `compare_specs.py`           | Compares OpenAPI schemas to detect structural changes |
-| `test_required_paramters.py` | Tests required headers/cookies by removing them systematically |
+| `test_required_parameters.py` | Tests required headers/cookies by removing them systematically |
 | `db_schema.py`               | Defines the SQLite schema for storing API snapshot history |
 | `openai_api_analyzer.py`     | Uses OpenAI API to detect user-sensitive data in responses |
 | `loggers.py`                 | Logging utilities |
@@ -54,6 +63,7 @@ You can use `forest.py` to process `.saz` files captured via tool like Fiddler, 
 | `--user_keywords_file`         | File containing user-sensitive keywords (default: `user_data_dict.txt`) |
 | `--target_domains_file`        | File containing relevant target domains (default: `target_domains_dict.txt`) |
 | `--test_required_parameters`   | Test which request headers/cookies/params are essential (removal-based) |
+| `--use_ai_analysis`            | Enable GPT-based analysis for detecting user-sensitive API responses (optional) |
 | `--generate_open_api_spec`     | Automatically generate OpenAPI specs from valid API sessions |
 | `--run_id`                     | Specify a `run_id` to filter or label analysis (optional) |
 | `--verbose`                    | Enable debug-level logging (default: INFO level) |
@@ -62,7 +72,7 @@ You can use `forest.py` to process `.saz` files captured via tool like Fiddler, 
 
 **Basic API session extraction**
 ```bash
-python forest.py captured_traffic.saz --generate_open_api_spec --test_required_parameters
+python forest.py captured_traffic.saz --generate_open_api_spec --test_required_parameters --use_ai_analysis
 ```
 
 ---
@@ -87,3 +97,36 @@ You can use `compare_specs.py` to load OpenAPI spec files from a folder, store t
 python compare_specs.py --spec_folder ./openapi_specs
 python compare_specs.py --spec_folder ./openapi_specs --db api_history.db --threshold 0.55
 ```
+
+
+### 🔐 OpenAI API Key (Optional)
+
+If you wish to enable AI-based filtering for sensitive API responses (e.g., detecting personal identifiers, chat logs, or cloud file metadata), you must set the `OPENAI_API_KEY` environment variable.
+
+#### 1. Get your key
+Visit [OpenAI API keys page](https://platform.openai.com/account/api-keys) and generate a new secret key.
+
+#### 2. Set the environment variable
+
+**Linux/macOS:**
+```bash
+export OPENAI_API_KEY="your-api-key-here"
+```
+
+**Windows (CMD):**
+```cmd
+set OPENAI_API_KEY=your-api-key-here
+```
+
+Alternatively, create a `.env` file in the project root:
+
+```
+OPENAI_API_KEY=your-api-key-here
+```
+
+The tool uses [`python-dotenv`](https://pypi.org/project/python-dotenv/) to load this automatically.
+
+#### 3. Security Tip
+
+To prevent accidental commits, ensure `.env` is listed in your `.gitignore`:
+
