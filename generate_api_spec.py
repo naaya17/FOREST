@@ -384,7 +384,7 @@ def process_all_spec_files(spec_folder):
                     segments[i] = "{" + value_to_key[seg] + "}"
             new_path = "/" + "/".join(segments)
             if new_path != path:
-                logger.info(f"🔁 Path updated: {path}  →  {new_path}")
+                logger.info(f" Path updated: {path}  →  {new_path}")
             updated_paths[new_path] = methods
         spec["paths"] = updated_paths
         with open(filepath, 'w', encoding='utf-8') as f:

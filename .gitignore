@@ -11,5 +11,6 @@ openapi_specs*
 
 onedrive_api.py
 test.py
-*.db
+results*.db
+api_history.db
 *.log

@@ -1,0 +1,1125 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "OpenAPI Spec for http://127.0.0.1:9065/api/v4/channels/m44gs5os5in37kerkx7eaazfke/posts",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:9065"
+    }
+  ],
+  "paths": {
+    "/api/v4/{categories.type}/{channel_id}/posts": {
+      "get": {
+        "parameters": [
+          {
+            "name": "Accept",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "*/*"
+          },
+          {
+            "name": "Accept-Encoding",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "gzip, deflate, br, zstd"
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "en"
+          },
+          {
+            "name": "Connection",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "keep-alive"
+          },
+          {
+            "name": "Cookie",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ajs_anonymous_id=00000000000000000000000000; ajs_user_id=7kq3uxuppinzffwbtqt7bb4nje; rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19FehAQtOOnp6w%2BqKp%2BAFXiK6fqly5i3w4%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FRE84Fxzq2KVzFB4IL94RrrLyjmdnRWG0%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19mtE72zYqR3EaSqhwTWNc8GC1r%2FOyimpJzfAuTHD70cKpsSpkVgFN7%2B%2FXJLrF368YvNmJ8AOKlyg%3D%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX19KZlxtUNaI88mKU7oxnOYWV4%2BzKtN%2FI5U%3D; rl_user_id=%22RudderEncrypt%3AU2FsdGVkX1%2BtpEu7j8eYw9g0MauNkUosVhglHyp3%2BB5oqx0m8UqBRIZYg%2BZ046v0%22; MMAUTHTOKEN=cbn5sradpfnd9gxd8s61kxkgec; MMUSERID=541udeka77grmxb4bmssfgqxty; MMCSRF=7qxujdr1q3nt8qott9fcc7hg1r"
+          },
+          {
+            "name": "Host",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "127.0.0.1:9065"
+          },
+          {
+            "name": "Sec-Fetch-Dest",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "empty"
+          },
+          {
+            "name": "Sec-Fetch-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "cors"
+          },
+          {
+            "name": "Sec-Fetch-Site",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "same-origin"
+          },
+          {
+            "name": "User-Agent",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0"
+          },
+          {
+            "name": "X-Requested-With",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "XMLHttpRequest"
+          },
+          {
+            "name": "sec-ch-ua",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "\"Chromium\";v=\"134\", \"Not:A-Brand\";v=\"24\", \"Microsoft Edge\";v=\"134\""
+          },
+          {
+            "name": "sec-ch-ua-mobile",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "?0"
+          },
+          {
+            "name": "sec-ch-ua-platform",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "\"Windows\""
+          },
+          {
+            "name": "MMAUTHTOKEN",
+            "in": "cookie",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "cbn5sradpfnd9gxd8s61kxkgec"
+          },
+          {
+            "name": "MMCSRF",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "7qxujdr1q3nt8qott9fcc7hg1r"
+          },
+          {
+            "name": "MMUSERID",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "541udeka77grmxb4bmssfgqxty"
+          },
+          {
+            "name": "ajs_anonymous_id",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000000000000000000000"
+          },
+          {
+            "name": "ajs_user_id",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "7kq3uxuppinzffwbtqt7bb4nje"
+          },
+          {
+            "name": "rl_anonymous_id",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "RudderEncrypt%3AU2FsdGVkX19mtE72zYqR3EaSqhwTWNc8GC1r%2FOyimpJzfAuTHD70cKpsSpkVgFN7%2B%2FXJLrF368YvNmJ8AOKlyg%3D%3D"
+          },
+          {
+            "name": "rl_page_init_referrer",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "RudderEncrypt%3AU2FsdGVkX19FehAQtOOnp6w%2BqKp%2BAFXiK6fqly5i3w4%3D"
+          },
+          {
+            "name": "rl_page_init_referring_domain",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "RudderEncrypt%3AU2FsdGVkX1%2FRE84Fxzq2KVzFB4IL94RrrLyjmdnRWG0%3D"
+          },
+          {
+            "name": "rl_trait",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "RudderEncrypt%3AU2FsdGVkX19KZlxtUNaI88mKU7oxnOYWV4%2BzKtN%2FI5U%3D"
+          },
+          {
+            "name": "rl_user_id",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "%22RudderEncrypt%3AU2FsdGVkX1%2BtpEu7j8eYw9g0MauNkUosVhglHyp3%2BB5oqx0m8UqBRIZYg%2BZ046v0%22"
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "xcyos5wwsfrmtyday1owm1w5na"
+          },
+          {
+            "name": "collapsedThreads",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "true"
+          },
+          {
+            "name": "collapsedThreadsExtended",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "false"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "0"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "30"
+          },
+          {
+            "name": "skipFetchThreads",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "false"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/plain": {
+              "schema": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response with status 200",
+            "headers": {
+              "content-encoding": {
+                "description": "Response header content-encoding",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "gzip"
+              },
+              "content-length": {
+                "description": "Response header content-length",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "589"
+              },
+              "content-type": {
+                "description": "Response header content-type",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "application/json"
+              },
+              "date": {
+                "description": "Response header date",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "Fri, 21 Mar 2025 15:09:47 GMT"
+              },
+              "etag": {
+                "description": "Response header etag",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "10.6.1.1742539739360"
+              },
+              "expires": {
+                "description": "Response header expires",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "0"
+              },
+              "permissions-policy": {
+                "description": "Response header permissions-policy",
+                "schema": {
+                  "type": "string"
+                },
+                "example": ""
+              },
+              "referrer-policy": {
+                "description": "Response header referrer-policy",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-referrer"
+              },
+              "vary": {
+                "description": "Response header vary",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "Accept-Encoding"
+              },
+              "x-content-type-options": {
+                "description": "Response header x-content-type-options",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "nosniff"
+              },
+              "x-request-id": {
+                "description": "Response header x-request-id",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "pyz8bzygsiyp3rtaekeafodurc"
+              },
+              "x-version-id": {
+                "description": "Response header x-version-id",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "10.6.1.13860096928.3f0cfd2cef99684200e1c3a9034183b7.false"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "example": "z34hr1oogbbidxkndoxpstor3o"
+                      },
+                      "example": [
+                        "z34hr1oogbbidxkndoxpstor3o",
+                        "b3uyqt9ak3djtyo5rzfd5indjw",
+                        "3nnr5eqzyj8ezjj1k3k3c5yn5o",
+                        "adei7bq5gift7ebzgidz64ij4a"
+                      ]
+                    },
+                    "posts": {
+                      "type": "object",
+                      "properties": {
+                        "3nnr5eqzyj8ezjj1k3k3c5yn5o": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "example": "3nnr5eqzyj8ezjj1k3k3c5yn5o"
+                            },
+                            "create_at": {
+                              "type": "integer",
+                              "example": 1742453174934
+                            },
+                            "update_at": {
+                              "type": "integer",
+                              "example": 1742453174934
+                            },
+                            "edit_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "delete_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "is_pinned": {
+                              "type": "integer",
+                              "example": false
+                            },
+                            "user_id": {
+                              "type": "string",
+                              "example": "541udeka77grmxb4bmssfgqxty"
+                            },
+                            "channel_id": {
+                              "type": "string",
+                              "example": "m44gs5os5in37kerkx7eaazfke"
+                            },
+                            "root_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "original_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "message": {
+                              "type": "string",
+                              "example": "forest joined the channel."
+                            },
+                            "type": {
+                              "type": "string",
+                              "example": "system_join_channel"
+                            },
+                            "props": {
+                              "type": "object",
+                              "properties": {
+                                "username": {
+                                  "type": "string",
+                                  "example": "forest"
+                                }
+                              },
+                              "example": {
+                                "username": "forest"
+                              }
+                            },
+                            "hashtags": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "file_ids": {
+                              "type": "array",
+                              "items": {},
+                              "example": []
+                            },
+                            "pending_post_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "reply_count": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "last_reply_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "participants": {
+                              "type": "null",
+                              "example": null
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "properties": {},
+                              "example": {}
+                            }
+                          },
+                          "example": {
+                            "id": "3nnr5eqzyj8ezjj1k3k3c5yn5o",
+                            "create_at": 1742453174934,
+                            "update_at": 1742453174934,
+                            "edit_at": 0,
+                            "delete_at": 0,
+                            "is_pinned": false,
+                            "user_id": "541udeka77grmxb4bmssfgqxty",
+                            "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                            "root_id": "",
+                            "original_id": "",
+                            "message": "forest joined the channel.",
+                            "type": "system_join_channel",
+                            "props": {
+                              "username": "forest"
+                            },
+                            "hashtags": "",
+                            "file_ids": [],
+                            "pending_post_id": "",
+                            "reply_count": 0,
+                            "last_reply_at": 0,
+                            "participants": null,
+                            "metadata": {}
+                          }
+                        },
+                        "adei7bq5gift7ebzgidz64ij4a": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "example": "adei7bq5gift7ebzgidz64ij4a"
+                            },
+                            "create_at": {
+                              "type": "integer",
+                              "example": 1742452977247
+                            },
+                            "update_at": {
+                              "type": "integer",
+                              "example": 1742452977247
+                            },
+                            "edit_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "delete_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "is_pinned": {
+                              "type": "integer",
+                              "example": false
+                            },
+                            "user_id": {
+                              "type": "string",
+                              "example": "mgoxgooa6if8bps5psjykm4w8e"
+                            },
+                            "channel_id": {
+                              "type": "string",
+                              "example": "m44gs5os5in37kerkx7eaazfke"
+                            },
+                            "root_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "original_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "message": {
+                              "type": "string",
+                              "example": "user03 joined the channel."
+                            },
+                            "type": {
+                              "type": "string",
+                              "example": "system_join_channel"
+                            },
+                            "props": {
+                              "type": "object",
+                              "properties": {
+                                "username": {
+                                  "type": "string",
+                                  "example": "user03"
+                                }
+                              },
+                              "example": {
+                                "username": "user03"
+                              }
+                            },
+                            "hashtags": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "file_ids": {
+                              "type": "array",
+                              "items": {},
+                              "example": []
+                            },
+                            "pending_post_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "reply_count": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "last_reply_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "participants": {
+                              "type": "null",
+                              "example": null
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "properties": {},
+                              "example": {}
+                            }
+                          },
+                          "example": {
+                            "id": "adei7bq5gift7ebzgidz64ij4a",
+                            "create_at": 1742452977247,
+                            "update_at": 1742452977247,
+                            "edit_at": 0,
+                            "delete_at": 0,
+                            "is_pinned": false,
+                            "user_id": "mgoxgooa6if8bps5psjykm4w8e",
+                            "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                            "root_id": "",
+                            "original_id": "",
+                            "message": "user03 joined the channel.",
+                            "type": "system_join_channel",
+                            "props": {
+                              "username": "user03"
+                            },
+                            "hashtags": "",
+                            "file_ids": [],
+                            "pending_post_id": "",
+                            "reply_count": 0,
+                            "last_reply_at": 0,
+                            "participants": null,
+                            "metadata": {}
+                          }
+                        },
+                        "b3uyqt9ak3djtyo5rzfd5indjw": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "example": "b3uyqt9ak3djtyo5rzfd5indjw"
+                            },
+                            "create_at": {
+                              "type": "integer",
+                              "example": 1742465192013
+                            },
+                            "update_at": {
+                              "type": "integer",
+                              "example": 1742465192013
+                            },
+                            "edit_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "delete_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "is_pinned": {
+                              "type": "integer",
+                              "example": false
+                            },
+                            "user_id": {
+                              "type": "string",
+                              "example": "541udeka77grmxb4bmssfgqxty"
+                            },
+                            "channel_id": {
+                              "type": "string",
+                              "example": "m44gs5os5in37kerkx7eaazfke"
+                            },
+                            "root_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "original_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "message": {
+                              "type": "string",
+                              "example": "hi, user03!"
+                            },
+                            "type": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "props": {
+                              "type": "object",
+                              "properties": {
+                                "disable_group_highlight": {
+                                  "type": "integer",
+                                  "example": true
+                                }
+                              },
+                              "example": {
+                                "disable_group_highlight": true
+                              }
+                            },
+                            "hashtags": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "file_ids": {
+                              "type": "array",
+                              "items": {},
+                              "example": []
+                            },
+                            "pending_post_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "remote_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "reply_count": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "last_reply_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "participants": {
+                              "type": "null",
+                              "example": null
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "properties": {},
+                              "example": {}
+                            }
+                          },
+                          "example": {
+                            "id": "b3uyqt9ak3djtyo5rzfd5indjw",
+                            "create_at": 1742465192013,
+                            "update_at": 1742465192013,
+                            "edit_at": 0,
+                            "delete_at": 0,
+                            "is_pinned": false,
+                            "user_id": "541udeka77grmxb4bmssfgqxty",
+                            "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                            "root_id": "",
+                            "original_id": "",
+                            "message": "hi, user03!",
+                            "type": "",
+                            "props": {
+                              "disable_group_highlight": true
+                            },
+                            "hashtags": "",
+                            "file_ids": [],
+                            "pending_post_id": "",
+                            "remote_id": "",
+                            "reply_count": 0,
+                            "last_reply_at": 0,
+                            "participants": null,
+                            "metadata": {}
+                          }
+                        },
+                        "z34hr1oogbbidxkndoxpstor3o": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "example": "z34hr1oogbbidxkndoxpstor3o"
+                            },
+                            "create_at": {
+                              "type": "integer",
+                              "example": 1742465572279
+                            },
+                            "update_at": {
+                              "type": "integer",
+                              "example": 1742465572279
+                            },
+                            "edit_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "delete_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "is_pinned": {
+                              "type": "integer",
+                              "example": false
+                            },
+                            "user_id": {
+                              "type": "string",
+                              "example": "mgoxgooa6if8bps5psjykm4w8e"
+                            },
+                            "channel_id": {
+                              "type": "string",
+                              "example": "m44gs5os5in37kerkx7eaazfke"
+                            },
+                            "root_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "original_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "message": {
+                              "type": "string",
+                              "example": "hi, forest!"
+                            },
+                            "type": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "props": {
+                              "type": "object",
+                              "properties": {
+                                "disable_group_highlight": {
+                                  "type": "integer",
+                                  "example": true
+                                }
+                              },
+                              "example": {
+                                "disable_group_highlight": true
+                              }
+                            },
+                            "hashtags": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "file_ids": {
+                              "type": "array",
+                              "items": {},
+                              "example": []
+                            },
+                            "pending_post_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "remote_id": {
+                              "type": "string",
+                              "example": ""
+                            },
+                            "reply_count": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "last_reply_at": {
+                              "type": "integer",
+                              "example": 0
+                            },
+                            "participants": {
+                              "type": "null",
+                              "example": null
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "properties": {},
+                              "example": {}
+                            }
+                          },
+                          "example": {
+                            "id": "z34hr1oogbbidxkndoxpstor3o",
+                            "create_at": 1742465572279,
+                            "update_at": 1742465572279,
+                            "edit_at": 0,
+                            "delete_at": 0,
+                            "is_pinned": false,
+                            "user_id": "mgoxgooa6if8bps5psjykm4w8e",
+                            "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                            "root_id": "",
+                            "original_id": "",
+                            "message": "hi, forest!",
+                            "type": "",
+                            "props": {
+                              "disable_group_highlight": true
+                            },
+                            "hashtags": "",
+                            "file_ids": [],
+                            "pending_post_id": "",
+                            "remote_id": "",
+                            "reply_count": 0,
+                            "last_reply_at": 0,
+                            "participants": null,
+                            "metadata": {}
+                          }
+                        }
+                      },
+                      "example": {
+                        "3nnr5eqzyj8ezjj1k3k3c5yn5o": {
+                          "id": "3nnr5eqzyj8ezjj1k3k3c5yn5o",
+                          "create_at": 1742453174934,
+                          "update_at": 1742453174934,
+                          "edit_at": 0,
+                          "delete_at": 0,
+                          "is_pinned": false,
+                          "user_id": "541udeka77grmxb4bmssfgqxty",
+                          "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                          "root_id": "",
+                          "original_id": "",
+                          "message": "forest joined the channel.",
+                          "type": "system_join_channel",
+                          "props": {
+                            "username": "forest"
+                          },
+                          "hashtags": "",
+                          "file_ids": [],
+                          "pending_post_id": "",
+                          "reply_count": 0,
+                          "last_reply_at": 0,
+                          "participants": null,
+                          "metadata": {}
+                        },
+                        "adei7bq5gift7ebzgidz64ij4a": {
+                          "id": "adei7bq5gift7ebzgidz64ij4a",
+                          "create_at": 1742452977247,
+                          "update_at": 1742452977247,
+                          "edit_at": 0,
+                          "delete_at": 0,
+                          "is_pinned": false,
+                          "user_id": "mgoxgooa6if8bps5psjykm4w8e",
+                          "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                          "root_id": "",
+                          "original_id": "",
+                          "message": "user03 joined the channel.",
+                          "type": "system_join_channel",
+                          "props": {
+                            "username": "user03"
+                          },
+                          "hashtags": "",
+                          "file_ids": [],
+                          "pending_post_id": "",
+                          "reply_count": 0,
+                          "last_reply_at": 0,
+                          "participants": null,
+                          "metadata": {}
+                        },
+                        "b3uyqt9ak3djtyo5rzfd5indjw": {
+                          "id": "b3uyqt9ak3djtyo5rzfd5indjw",
+                          "create_at": 1742465192013,
+                          "update_at": 1742465192013,
+                          "edit_at": 0,
+                          "delete_at": 0,
+                          "is_pinned": false,
+                          "user_id": "541udeka77grmxb4bmssfgqxty",
+                          "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                          "root_id": "",
+                          "original_id": "",
+                          "message": "hi, user03!",
+                          "type": "",
+                          "props": {
+                            "disable_group_highlight": true
+                          },
+                          "hashtags": "",
+                          "file_ids": [],
+                          "pending_post_id": "",
+                          "remote_id": "",
+                          "reply_count": 0,
+                          "last_reply_at": 0,
+                          "participants": null,
+                          "metadata": {}
+                        },
+                        "z34hr1oogbbidxkndoxpstor3o": {
+                          "id": "z34hr1oogbbidxkndoxpstor3o",
+                          "create_at": 1742465572279,
+                          "update_at": 1742465572279,
+                          "edit_at": 0,
+                          "delete_at": 0,
+                          "is_pinned": false,
+                          "user_id": "mgoxgooa6if8bps5psjykm4w8e",
+                          "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                          "root_id": "",
+                          "original_id": "",
+                          "message": "hi, forest!",
+                          "type": "",
+                          "props": {
+                            "disable_group_highlight": true
+                          },
+                          "hashtags": "",
+                          "file_ids": [],
+                          "pending_post_id": "",
+                          "remote_id": "",
+                          "reply_count": 0,
+                          "last_reply_at": 0,
+                          "participants": null,
+                          "metadata": {}
+                        }
+                      }
+                    },
+                    "next_post_id": {
+                      "type": "string",
+                      "example": "xcyos5wwsfrmtyday1owm1w5na"
+                    },
+                    "prev_post_id": {
+                      "type": "string",
+                      "example": ""
+                    },
+                    "first_inaccessible_post_time": {
+                      "type": "integer",
+                      "example": 0
+                    }
+                  },
+                  "example": {
+                    "order": [
+                      "z34hr1oogbbidxkndoxpstor3o",
+                      "b3uyqt9ak3djtyo5rzfd5indjw",
+                      "3nnr5eqzyj8ezjj1k3k3c5yn5o",
+                      "adei7bq5gift7ebzgidz64ij4a"
+                    ],
+                    "posts": {
+                      "3nnr5eqzyj8ezjj1k3k3c5yn5o": {
+                        "id": "3nnr5eqzyj8ezjj1k3k3c5yn5o",
+                        "create_at": 1742453174934,
+                        "update_at": 1742453174934,
+                        "edit_at": 0,
+                        "delete_at": 0,
+                        "is_pinned": false,
+                        "user_id": "541udeka77grmxb4bmssfgqxty",
+                        "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                        "root_id": "",
+                        "original_id": "",
+                        "message": "forest joined the channel.",
+                        "type": "system_join_channel",
+                        "props": {
+                          "username": "forest"
+                        },
+                        "hashtags": "",
+                        "file_ids": [],
+                        "pending_post_id": "",
+                        "reply_count": 0,
+                        "last_reply_at": 0,
+                        "participants": null,
+                        "metadata": {}
+                      },
+                      "adei7bq5gift7ebzgidz64ij4a": {
+                        "id": "adei7bq5gift7ebzgidz64ij4a",
+                        "create_at": 1742452977247,
+                        "update_at": 1742452977247,
+                        "edit_at": 0,
+                        "delete_at": 0,
+                        "is_pinned": false,
+                        "user_id": "mgoxgooa6if8bps5psjykm4w8e",
+                        "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                        "root_id": "",
+                        "original_id": "",
+                        "message": "user03 joined the channel.",
+                        "type": "system_join_channel",
+                        "props": {
+                          "username": "user03"
+                        },
+                        "hashtags": "",
+                        "file_ids": [],
+                        "pending_post_id": "",
+                        "reply_count": 0,
+                        "last_reply_at": 0,
+                        "participants": null,
+                        "metadata": {}
+                      },
+                      "b3uyqt9ak3djtyo5rzfd5indjw": {
+                        "id": "b3uyqt9ak3djtyo5rzfd5indjw",
+                        "create_at": 1742465192013,
+                        "update_at": 1742465192013,
+                        "edit_at": 0,
+                        "delete_at": 0,
+                        "is_pinned": false,
+                        "user_id": "541udeka77grmxb4bmssfgqxty",
+                        "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                        "root_id": "",
+                        "original_id": "",
+                        "message": "hi, user03!",
+                        "type": "",
+                        "props": {
+                          "disable_group_highlight": true
+                        },
+                        "hashtags": "",
+                        "file_ids": [],
+                        "pending_post_id": "",
+                        "remote_id": "",
+                        "reply_count": 0,
+                        "last_reply_at": 0,
+                        "participants": null,
+                        "metadata": {}
+                      },
+                      "z34hr1oogbbidxkndoxpstor3o": {
+                        "id": "z34hr1oogbbidxkndoxpstor3o",
+                        "create_at": 1742465572279,
+                        "update_at": 1742465572279,
+                        "edit_at": 0,
+                        "delete_at": 0,
+                        "is_pinned": false,
+                        "user_id": "mgoxgooa6if8bps5psjykm4w8e",
+                        "channel_id": "m44gs5os5in37kerkx7eaazfke",
+                        "root_id": "",
+                        "original_id": "",
+                        "message": "hi, forest!",
+                        "type": "",
+                        "props": {
+                          "disable_group_highlight": true
+                        },
+                        "hashtags": "",
+                        "file_ids": [],
+                        "pending_post_id": "",
+                        "remote_id": "",
+                        "reply_count": 0,
+                        "last_reply_at": 0,
+                        "participants": null,
+                        "metadata": {}
+                      }
+                    },
+                    "next_post_id": "xcyos5wwsfrmtyday1owm1w5na",
+                    "prev_post_id": "",
+                    "first_inaccessible_post_time": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
