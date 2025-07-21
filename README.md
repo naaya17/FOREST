@@ -119,6 +119,47 @@ python compare_specs.py --spec_folder ./openapi_specs
 python compare_specs.py --spec_folder ./openapi_specs --db api_history.db --threshold 0.55
 ```
 
+
+
+
+### 🔐 OpenAI API Key (Optional)
+
+If you wish to enable AI-based filtering for sensitive API responses (e.g., detecting personal identifiers, chat logs, or cloud file metadata), you must set the `OPENAI_API_KEY` environment variable.
+
+#### 1. Get your key
+Visit [OpenAI API keys page](https://platform.openai.com/account/api-keys) and generate a new secret key.
+
+#### 2. Set the environment variable
+
+**Linux/macOS:**
+```bash
+export OPENAI_API_KEY="your-api-key-here"
+```
+
+**Windows (CMD):**
+```cmd
+set OPENAI_API_KEY=your-api-key-here
+```
+
+Alternatively, create a `.env` file in the project root:
+
+```
+OPENAI_API_KEY=your-api-key-here
+```
+
+The tool uses [`python-dotenv`](https://pypi.org/project/python-dotenv/) to load this automatically.
+
+#### 3. Security Tip
+
+To prevent accidental commits, ensure `.env` is listed in your `.gitignore`:
+
+```
+.env
+```
+
+This key is used only to classify API responses via GPT models, enhancing the detection of forensic-relevant user data.
+
+
 ### 🧠 Solve-IT Contribution
 
 This repository also includes a contribution to the **Solve-IT forensic technique taxonomy**:
